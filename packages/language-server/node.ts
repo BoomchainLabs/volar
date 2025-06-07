@@ -1,11 +1,10 @@
 import type { LanguageServer } from '@volar/language-server';
 import { createLanguageServiceEnvironment } from '@volar/language-server/lib/project/simpleProject';
-import { createConnection, createServer, loadTsdkByPath } from '@volar/language-server/node';
+import { createConnection, createServer } from '@volar/language-server/node';
 import { createLanguage, createParsedCommandLine, createVueLanguagePlugin, getDefaultCompilerOptions } from '@vue/language-core';
 import { createLanguageService, createUriMap, getHybridModeLanguageServicePlugins, type LanguageService } from '@vue/language-service';
-import type * as ts from 'typescript';
+import * as ts from 'typescript';
 import { URI } from 'vscode-uri';
-import type { VueInitializationOptions } from './lib/types';
 
 const connection = createConnection();
 const server = createServer(connection);
@@ -13,16 +12,6 @@ const server = createServer(connection);
 connection.listen();
 
 connection.onInitialize(params => {
-	const options: VueInitializationOptions = params.initializationOptions;
-
-	if (!options.typescript?.tsdk) {
-		throw new Error('typescript.tsdk is required');
-	}
-	if (!options.typescript?.tsserverRequestCommand) {
-		connection.console.warn('typescript.tsserverRequestCommand is required since >= 3.0 for complete TS features');
-	}
-
-	const { typescript: ts } = loadTsdkByPath(options.typescript.tsdk, params.locale);
 	const tsconfigProjects = createUriMap<LanguageService>();
 	const file2ProjectInfo = new Map<string, Promise<ts.server.protocol.ProjectInfo | null>>();
 
@@ -38,13 +27,21 @@ connection.onInitialize(params => {
 	});
 
 	let simpleLs: LanguageService | undefined;
+	let tsserverRequestId = 0;
+
+	const tsserverRequestHandlers = new Map<number, (res: any) => void>();
+
+	connection.onNotification('tsserver/response', ([id, res]) => {
+		tsserverRequestHandlers.get(id)?.(res);
+		tsserverRequestHandlers.delete(id);
+	});
 
 	return server.initialize(
 		params,
 		{
 			setup() { },
 			async getLanguageService(uri) {
-				if (uri.scheme === 'file' && options.typescript.tsserverRequestCommand) {
+				if (uri.scheme === 'file') {
 					const fileName = uri.fsPath.replace(/\\/g, '/');
 					let projectInfoPromise = file2ProjectInfo.get(fileName);
 					if (!projectInfoPromise) {
@@ -77,17 +74,17 @@ connection.onInitialize(params => {
 				].filter(promise => !!promise));
 			},
 			reload() {
-				for (const ls of [
-					...tsconfigProjects.values(),
-					simpleLs,
-				]) {
-					ls?.dispose();
+				for (const ls of tsconfigProjects.values()) {
+					ls.dispose();
 				}
 				tsconfigProjects.clear();
-				simpleLs = undefined;
+				if (simpleLs) {
+					simpleLs.dispose();
+					simpleLs = undefined;
+				}
 			},
 		},
-		getHybridModeLanguageServicePlugins(ts, options.typescript.tsserverRequestCommand ? {
+		getHybridModeLanguageServicePlugins(ts, {
 			collectExtractProps(...args) {
 				return sendTsRequest('vue:collectExtractProps', args);
 			},
@@ -136,11 +133,15 @@ connection.onInitialize(params => {
 				);
 				return ts.displayPartsToString(result?.displayParts ?? []);
 			},
-		} : undefined)
+		})
 	);
 
-	function sendTsRequest<T>(command: string, args: any): Promise<T | null> {
-		return connection.sendRequest<T>(options.typescript.tsserverRequestCommand!, [command, args]);
+	async function sendTsRequest<T>(command: string, args: any): Promise<T | null> {
+		return await new Promise<T | null>(resolve => {
+			const requestId = ++tsserverRequestId;
+			tsserverRequestHandlers.set(requestId, resolve);
+			connection.sendNotification('tsserver/request', [requestId, command, args]);
+		});
 	}
 
 	function createLs(server: LanguageServer, tsconfig: string | undefined) {
