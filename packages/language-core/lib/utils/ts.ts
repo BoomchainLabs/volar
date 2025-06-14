@@ -176,7 +176,7 @@ export class CompilerOptionsResolver {
 					break;
 				case 'plugins':
 					this.plugins = (options.plugins ?? [])
-						.map<VueLanguagePlugin>((pluginPath: string) => {
+						.flatMap<VueLanguagePlugin>((pluginPath: string) => {
 							try {
 								const resolvedPath = resolvePath(pluginPath, rootDir);
 								if (resolvedPath) {
@@ -269,6 +269,7 @@ export function getDefaultCompilerOptions(target = 99, lib = 'vue', strictTempla
 		jsxSlots: false,
 		strictSlotChildren: strictTemplates,
 		strictVModel: strictTemplates,
+		strictCssModules: false,
 		checkUnknownProps: strictTemplates,
 		checkUnknownEvents: strictTemplates,
 		checkUnknownDirectives: strictTemplates,
@@ -281,6 +282,8 @@ export function getDefaultCompilerOptions(target = 99, lib = 'vue', strictTempla
 		inferTemplateDollarSlots: false,
 		skipTemplateCodegen: false,
 		fallthroughAttributes: false,
+		resolveStyleImports: false,
+		resolveStyleClassNames: 'scoped',
 		fallthroughComponentNames: [
 			'Transition',
 			'KeepAlive',
@@ -306,8 +309,6 @@ export function getDefaultCompilerOptions(target = 99, lib = 'vue', strictTempla
 			useTemplateRef: ['useTemplateRef', 'templateRef'],
 		},
 		plugins: [],
-		experimentalDefinePropProposal: false,
-		experimentalResolveStyleCssClasses: 'scoped',
 		experimentalModelPropName: {
 			'': {
 				input: true
