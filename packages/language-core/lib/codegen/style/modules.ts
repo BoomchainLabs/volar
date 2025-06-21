@@ -3,9 +3,10 @@ import { codeFeatures } from '../codeFeatures';
 import type { ScriptCodegenOptions } from '../script';
 import { endOfLine, newLine } from '../utils';
 import { generateClassProperty } from './classProperty';
+import { generateStyleImports } from './imports';
 
 export function* generateStyleModules(
-	options: ScriptCodegenOptions
+	options: ScriptCodegenOptions,
 ): Generator<Code> {
 	const styles = options.sfc.styles.map((style, i) => [style, i] as const).filter(([style]) => style.module);
 	if (!styles.length && !options.scriptSetupRanges?.useCssModule.length) {
@@ -22,16 +23,23 @@ export function* generateStyleModules(
 				text,
 				'main',
 				offset,
-				codeFeatures.withoutHighlight
+				codeFeatures.navigation,
 			];
 		}
-		yield `: Record<string, string> & __VLS_PrettifyGlobal<{}`;
+		yield `: `;
+		if (!options.vueCompilerOptions.strictCssModules) {
+			yield `Record<string, string> & `;
+		}
+		yield `__VLS_PrettifyGlobal<{}`;
+		if (options.vueCompilerOptions.resolveStyleImports) {
+			yield* generateStyleImports(style);
+		}
 		for (const className of style.classNames) {
 			yield* generateClassProperty(
 				i,
 				className.text,
 				className.offset,
-				'string'
+				'string',
 			);
 		}
 		yield `>${endOfLine}`;

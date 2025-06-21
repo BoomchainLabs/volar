@@ -18,7 +18,7 @@ export function createParsedCommandLineByJson(
 	rootDir: string,
 	json: any,
 	configFileName = rootDir + '/jsconfig.json',
-	skipGlobalTypesSetup = false
+	skipGlobalTypesSetup = false,
 ): ParsedCommandLine {
 
 	const proxyHost = proxyParseConfigHostForExtendConfigPaths(parseConfigHost);
@@ -32,7 +32,7 @@ export function createParsedCommandLineByJson(
 			const obj = ts.convertToObject(configFile, []);
 			const rawOptions: RawVueCompilerOptions = obj?.vueCompilerOptions ?? {};
 			resolver.addConfig(rawOptions, path.dirname(configFile.fileName));
-		} catch (err) { }
+		} catch { }
 	}
 
 	const resolvedVueOptions = resolver.build();
@@ -55,7 +55,7 @@ export function createParsedCommandLineByJson(
 				extension: extension.slice(1),
 				isMixedContent: true,
 				scriptKind: ts.ScriptKind.Deferred,
-			}))
+			})),
 	);
 
 	// fix https://github.com/vuejs/language-tools/issues/1786
@@ -73,7 +73,7 @@ export function createParsedCommandLine(
 	ts: typeof import('typescript'),
 	parseConfigHost: ts.ParseConfigHost,
 	tsConfigPath: string,
-	skipGlobalTypesSetup = false
+	skipGlobalTypesSetup = false,
 ): ParsedCommandLine {
 	try {
 		const proxyHost = proxyParseConfigHostForExtendConfigPaths(parseConfigHost);
@@ -88,7 +88,7 @@ export function createParsedCommandLine(
 				const obj = ts.convertToObject(configFile, []);
 				const rawOptions: RawVueCompilerOptions = obj?.vueCompilerOptions ?? {};
 				resolver.addConfig(rawOptions, path.dirname(configFile.fileName));
-			} catch (err) { }
+			} catch { }
 		}
 
 		const resolvedVueOptions = resolver.build();
@@ -111,7 +111,7 @@ export function createParsedCommandLine(
 					extension: extension.slice(1),
 					isMixedContent: true,
 					scriptKind: ts.ScriptKind.Deferred,
-				}))
+				})),
 		);
 
 		// fix https://github.com/vuejs/language-tools/issues/1786
@@ -124,7 +124,7 @@ export function createParsedCommandLine(
 			vueOptions: resolvedVueOptions,
 		};
 	}
-	catch (err) {
+	catch {
 		// console.warn('Failed to resolve tsconfig path:', tsConfigPath, err);
 		return {
 			fileNames: [],
@@ -148,7 +148,7 @@ function proxyParseConfigHostForExtendConfigPaths(parseConfigHost: ts.ParseConfi
 				};
 			}
 			return target[key as keyof typeof target];
-		}
+		},
 	});
 	return {
 		host,
@@ -176,7 +176,7 @@ export class CompilerOptionsResolver {
 					break;
 				case 'plugins':
 					this.plugins = (options.plugins ?? [])
-						.map<VueLanguagePlugin>((pluginPath: string) => {
+						.flatMap<VueLanguagePlugin>((pluginPath: string) => {
 							try {
 								const resolvedPath = resolvePath(pluginPath, rootDir);
 								if (resolvedPath) {
@@ -222,12 +222,12 @@ export class CompilerOptionsResolver {
 			},
 			fallthroughComponentNames: [
 				...defaults.fallthroughComponentNames,
-				...this.options.fallthroughComponentNames ?? []
+				...this.options.fallthroughComponentNames ?? [],
 			].map(hyphenateTag),
 			// https://github.com/vuejs/vue-next/blob/master/packages/compiler-dom/src/transforms/vModel.ts#L49-L51
 			// https://vuejs.org/guide/essentials/forms.html#form-input-bindings
 			experimentalModelPropName: Object.fromEntries(Object.entries(
-				this.options.experimentalModelPropName ?? defaults.experimentalModelPropName
+				this.options.experimentalModelPropName ?? defaults.experimentalModelPropName,
 			).map(([k, v]) => [camelize(k), v])),
 		};
 	}
@@ -254,7 +254,7 @@ function resolvePath(scriptPath: string, root: string) {
 			// console.warn('failed to resolve path:', scriptPath, 'require.resolve is not supported in web');
 		}
 	}
-	catch (error) {
+	catch {
 		// console.warn(error);
 	}
 }
@@ -269,6 +269,7 @@ export function getDefaultCompilerOptions(target = 99, lib = 'vue', strictTempla
 		jsxSlots: false,
 		strictSlotChildren: strictTemplates,
 		strictVModel: strictTemplates,
+		strictCssModules: false,
 		checkUnknownProps: strictTemplates,
 		checkUnknownEvents: strictTemplates,
 		checkUnknownDirectives: strictTemplates,
@@ -281,6 +282,8 @@ export function getDefaultCompilerOptions(target = 99, lib = 'vue', strictTempla
 		inferTemplateDollarSlots: false,
 		skipTemplateCodegen: false,
 		fallthroughAttributes: false,
+		resolveStyleImports: false,
+		resolveStyleClassNames: 'scoped',
 		fallthroughComponentNames: [
 			'Transition',
 			'KeepAlive',
@@ -306,17 +309,15 @@ export function getDefaultCompilerOptions(target = 99, lib = 'vue', strictTempla
 			useTemplateRef: ['useTemplateRef', 'templateRef'],
 		},
 		plugins: [],
-		experimentalDefinePropProposal: false,
-		experimentalResolveStyleCssClasses: 'scoped',
 		experimentalModelPropName: {
 			'': {
-				input: true
+				input: true,
 			},
 			value: {
 				input: { type: 'text' },
 				textarea: true,
-				select: true
-			}
+				select: true,
+			},
 		},
 	};
 }

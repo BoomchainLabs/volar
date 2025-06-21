@@ -4,11 +4,11 @@ import type { RequestContext } from './types';
 export function collectExtractProps(
 	this: RequestContext,
 	fileName: string,
-	templateCodeRange: [number, number]
+	templateCodeRange: [number, number],
 ) {
-	const { typescript: ts, languageService, language, isTsPlugin, getFileId } = this;
+	const { typescript: ts, languageService, language, isTsPlugin, asScriptId } = this;
 
-	const sourceScript = language.scripts.get(getFileId(fileName));
+	const sourceScript = language.scripts.get(asScriptId(fileName));
 	if (!sourceScript?.generated) {
 		return;
 	}

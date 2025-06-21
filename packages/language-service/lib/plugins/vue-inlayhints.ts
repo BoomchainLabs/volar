@@ -1,9 +1,7 @@
-import { tsCodegen, VueVirtualCode } from '@vue/language-core';
-import { collectIdentifiers } from '@vue/language-core/lib/codegen/utils/index';
+import type { InlayHint, InlayHintKind, LanguageServicePlugin } from '@volar/language-service';
+import { collectIdentifiers, tsCodegen, VueVirtualCode } from '@vue/language-core';
 import type * as ts from 'typescript';
-import type * as vscode from 'vscode-languageserver-protocol';
 import { URI } from 'vscode-uri';
-import type { LanguageServicePlugin } from '../types';
 
 export function create(ts: typeof import('typescript')): LanguageServicePlugin {
 	return {
@@ -28,7 +26,7 @@ export function create(ts: typeof import('typescript')): LanguageServicePlugin {
 						return settings[key] ??= await context.env.getConfiguration?.<boolean>(key) ?? false;
 					}
 
-					const result: vscode.InlayHint[] = [];
+					const result: InlayHint[] = [];
 
 					const codegen = tsCodegen.get(virtualCode.sfc);
 					const inlayHints = [
@@ -45,7 +43,7 @@ export function create(ts: typeof import('typescript')): LanguageServicePlugin {
 							for (const [prop, isShorthand] of findDestructuredProps(
 								ts,
 								virtualCode.sfc.scriptSetup.ast,
-								scriptSetupRanges.defineProps.destructured.keys()
+								scriptSetupRanges.defineProps.destructured.keys(),
 							)) {
 								const name = prop.text;
 								const end = prop.getEnd();
@@ -90,7 +88,7 @@ export function create(ts: typeof import('typescript')): LanguageServicePlugin {
 							paddingRight: hint.paddingRight,
 							paddingLeft: hint.paddingLeft,
 							position: document.positionAt(hintOffset),
-							kind: 2 satisfies typeof vscode.InlayHintKind.Parameter,
+							kind: 2 satisfies typeof InlayHintKind.Parameter,
 							tooltip: hint.tooltip ? {
 								kind: 'markdown',
 								value: hint.tooltip,
@@ -117,7 +115,7 @@ type Scope = Record<string, boolean>;
 export function findDestructuredProps(
 	ts: typeof import('typescript'),
 	ast: ts.SourceFile,
-	props: MapIterator<string>
+	props: MapIterator<string>,
 ) {
 	const rootScope: Scope = Object.create(null);
 	const scopeStack: Scope[] = [rootScope];
@@ -223,7 +221,9 @@ export function findDestructuredProps(
 		});
 
 		function enter(node: ts.Node) {
-			parent && parentStack.push(parent);
+			if (parent) {
+				parentStack.push(parent);
+			}
 
 			if (
 				ts.isTypeLiteralNode(node) ||
@@ -275,7 +275,10 @@ export function findDestructuredProps(
 		}
 
 		function leave(node: ts.Node) {
-			parent && parentStack.pop();
+			if (parent) {
+				parentStack.pop();
+			}
+
 			if (
 				ts.isFunctionLike(node)
 				|| ts.isCatchClause(node)
@@ -293,7 +296,7 @@ export function findDestructuredProps(
 	// TODO: more conditions
 	function isReferencedIdentifier(
 		id: ts.Identifier,
-		parent: ts.Node | null
+		parent: ts.Node | null,
 	) {
 		if (!parent) {
 			return false;

@@ -57,109 +57,8 @@ export default defineConfig({
 							reportError(
 								`Module '${moduleName}' should be in the dependencies.`,
 								node.getStart(sourceFile),
-								node.getEnd()
+								node.getEnd(),
 							);
-						}
-					}
-					ts.forEachChild(node, visit);
-				});
-			},
-		},
-		syntactic: {
-			/**
-			 * @example
-			 * ```diff
-			 * console.log(obj.prop); // used
-			 * - obj.prop; // unused
-			 * ```
-			 */
-			'no-unused-property-access'({ typescript: ts, sourceFile, reportWarning }) {
-				ts.forEachChild(sourceFile, function visit(node) {
-					if (ts.isPropertyAccessExpression(node)) {
-						const parent = node.parent;
-						if (ts.isExpressionStatement(parent)) {
-							reportWarning(
-								`Property '${node.name.text}' is accessed but not used.`,
-								node.getStart(sourceFile),
-								node.getEnd()
-							).withFix(
-								'Remove unused property access',
-								() => [{
-									fileName: sourceFile.fileName,
-									textChanges: [
-										{
-											newText: '',
-											span: {
-												start: parent.getStart(sourceFile),
-												length: parent.getEnd() - parent.getStart(sourceFile),
-											},
-										}
-									],
-								}]
-							);
-						}
-					}
-					ts.forEachChild(node, visit);
-				});
-			},
-			'no-unused-variable-access'({ typescript: ts, sourceFile, reportWarning }) {
-				ts.forEachChild(sourceFile, function visit(node) {
-					if (ts.isIdentifier(node)) {
-						const parent = node.parent;
-						if (ts.isExpressionStatement(parent)) {
-							reportWarning(
-								`Variable '${node.text}' is accessed but not used.`,
-								node.getStart(sourceFile),
-								node.getEnd()
-							).withFix(
-								'Remove unused variable access',
-								() => [{
-									fileName: sourceFile.fileName,
-									textChanges: [
-										{
-											newText: '',
-											span: {
-												start: parent.getStart(sourceFile),
-												length: parent.getEnd() - parent.getStart(sourceFile),
-											},
-										}
-									],
-								}]
-							);
-						}
-					}
-					ts.forEachChild(node, visit);
-				});
-			},
-			'no-async-without-await'({ typescript: ts, sourceFile, reportSuggestion }) {
-				ts.forEachChild(sourceFile, function visit(node) {
-					if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isMethodDeclaration(node)) {
-						const awaitModifer = node.modifiers?.find(modifier => modifier.kind === ts.SyntaxKind.AsyncKeyword);
-						if (awaitModifer && node.body) {
-							let hasAwait = false;
-							ts.forEachChild(node.body, function visit(node) {
-								hasAwait ||= ts.isAwaitExpression(node);
-								ts.forEachChild(node, visit);
-							});
-							if (!hasAwait) {
-								reportSuggestion(
-									`Function is declared as async but does not use await.`,
-									awaitModifer.getStart(sourceFile),
-									awaitModifer.getEnd()
-								).withRefactor(
-									'Remove async modifier',
-									() => [{
-										fileName: sourceFile.fileName,
-										textChanges: [{
-											span: {
-												start: awaitModifer.getStart(sourceFile),
-												length: awaitModifer.getEnd() - awaitModifer.getStart(sourceFile),
-											},
-											newText: ''
-										}]
-									}]
-								);
-							}
 						}
 					}
 					ts.forEachChild(node, visit);
@@ -168,6 +67,65 @@ export default defineConfig({
 		},
 	},
 	formatting: [
+		function trailingComma({ typescript: ts, sourceFile, insert, remove }) {
+			const { text } = sourceFile;
+			ts.forEachChild(sourceFile, function visit(node) {
+				let lastNode: ts.Node | undefined;
+				let end: number | undefined;
+				let allow = true;
+
+				if (ts.isObjectLiteralExpression(node)) {
+					lastNode = node.properties[node.properties.length - 1];
+					end = node.end;
+				}
+				else if (
+					ts.isArrayLiteralExpression(node)
+					|| ts.isObjectBindingPattern(node)
+					|| ts.isArrayBindingPattern(node)
+					|| ts.isNamedImports(node)
+					|| ts.isNamedExports(node)
+					|| ts.isImportAttributes(node)
+					|| ts.isTupleTypeNode(node)
+				) {
+					lastNode = node.elements[node.elements.length - 1];
+					end = node.end;
+				}
+				else if (ts.isEnumDeclaration(node)) {
+					lastNode = node.members[node.members.length - 1];
+					end = node.end;
+				}
+				else if (ts.isCallExpression(node) || ts.isNewExpression(node)) {
+					lastNode = node.arguments?.[node.arguments.length - 1];
+					end = node.end;
+				}
+				else if (ts.isFunctionLike(node)) {
+					const last = node.parameters[node.parameters.length - 1];
+					if (last && !last.dotDotDotToken) {
+						lastNode = last;
+						const right = 'body' in node && node.body?.getStart(sourceFile) || Infinity;
+						const parenIndex = text.indexOf(')', lastNode.end);
+						if (parenIndex !== -1 && parenIndex < right) {
+							end = parenIndex + 1;
+						}
+					}
+				}
+
+				if (lastNode && end) {
+					const trailings = text.slice(lastNode.end, end - 1);
+					const commaIndex = trailings.indexOf(',');
+					if (allow && trailings.includes('\n')) {
+						if (commaIndex === -1) {
+							insert(lastNode.end, ',');
+						}
+					}
+					else if (commaIndex !== -1) {
+						const start = lastNode.end + commaIndex;
+						remove(start, start + 1);
+					}
+				}
+				ts.forEachChild(node, visit);
+			});
+		},
 		/**
 		 * @example
 		 * ```diff
@@ -196,55 +154,6 @@ export default defineConfig({
 		/**
 		 * @example
 		 * ```diff
-		 * - if (foo) bar();
-		 * + if (foo) {
-		 * +   bar();
-		 * + }
-		 * ```
-		 */
-		function bracesAroundStatements({ typescript: ts, sourceFile, insert }) {
-			ts.forEachChild(sourceFile, function visit(node) {
-				if (ts.isIfStatement(node)) {
-					if (!ts.isBlock(node.thenStatement)) {
-						edit(node.thenStatement);
-					}
-					if (node.elseStatement && !ts.isIfStatement(node.elseStatement) && !ts.isBlock(node.elseStatement)) {
-						edit(node.elseStatement);
-					}
-				}
-				// @ts-expect-error
-				else if ('statement' in node && ts.isStatement(node.statement)) {
-					const statement = node.statement;
-					if (!ts.isBlock(node.statement)) {
-						edit(statement);
-					}
-				}
-				ts.forEachChild(node, visit);
-			});
-			function edit(statement: ts.Statement) {
-				insert(
-					statement.getFullStart(),
-					isSameLine(statement)
-						? ' {\n'
-						: ' {'
-				);
-				insert(
-					ts.getTrailingCommentRanges(
-						sourceFile.text,
-						statement.getEnd()
-					)?.reverse()?.[0]?.end
-					?? statement.getEnd(),
-					'\n}'
-				);
-			}
-			function isSameLine(node: ts.Node) {
-				return ts.getLineAndCharacterOfPosition(sourceFile, node.getFullStart()).line
-					=== ts.getLineAndCharacterOfPosition(sourceFile, node.parent.getEnd()).line;
-			}
-		},
-		/**
-		 * @example
-		 * ```diff
 		 * - const foo = (bar) => {};
 		 * + const foo = bar => {};
 		 * ```
@@ -267,37 +176,6 @@ export default defineConfig({
 					) {
 						remove(parameter.getStart(sourceFile) - 1, parameter.getStart(sourceFile));
 						remove(parameter.getEnd(), parameter.getEnd() + 1);
-					}
-				}
-				ts.forEachChild(node, visit);
-			});
-		},
-		function noTrailingCommaInFunction({ typescript: ts, sourceFile, remove }) {
-			const { text } = sourceFile;
-			ts.forEachChild(sourceFile, function visit(node) {
-				if (ts.isFunctionDeclaration(node) || ts.isArrowFunction(node) || ts.isMethodDeclaration(node)) {
-					const parameters = node.parameters;
-					if (parameters.length > 0) {
-						const lastParameter = parameters[parameters.length - 1];
-						const nextCharIndex = lastParameter.end;
-						if (text[nextCharIndex] === ',') {
-							remove(nextCharIndex, nextCharIndex + 1);
-						}
-					}
-				}
-				ts.forEachChild(node, visit);
-			});
-		},
-		function noTrailingCommaInFunctionCall({ typescript: ts, sourceFile, remove }) {
-			const { text } = sourceFile;
-			ts.forEachChild(sourceFile, function visit(node) {
-				if (ts.isCallExpression(node)) {
-					if (node.arguments.length > 0) {
-						const lastArgument = node.arguments[node.arguments.length - 1];
-						const nextCharIndex = lastArgument.end;
-						if (text[nextCharIndex] === ',') {
-							remove(nextCharIndex, nextCharIndex + 1);
-						}
 					}
 				}
 				ts.forEachChild(node, visit);

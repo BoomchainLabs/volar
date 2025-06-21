@@ -15,10 +15,10 @@ export interface ComponentPropInfo {
 export function getComponentProps(
 	this: RequestContext,
 	fileName: string,
-	tag: string
+	tag: string,
 ) {
-	const { typescript: ts, language, languageService, getFileId } = this;
-	const volarFile = language.scripts.get(getFileId(fileName));
+	const { typescript: ts, language, languageService, asScriptId } = this;
+	const volarFile = language.scripts.get(asScriptId(fileName));
 	if (!(volarFile?.generated?.root instanceof VueVirtualCode)) {
 		return;
 	}
@@ -119,7 +119,7 @@ function generateCommentMarkdown(parts: ts.SymbolDisplayPart[], jsDocTags: ts.JS
 	const deprecated = jsDocTags.some(tag => tag.name === 'deprecated');
 	return {
 		content,
-		deprecated
+		deprecated,
 	};
 }
 

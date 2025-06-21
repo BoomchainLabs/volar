@@ -1,12 +1,11 @@
-import type { LanguageServiceContext, LanguageServicePlugin } from '@volar/language-service';
+import type { InlayHint, LanguageServiceContext, LanguageServicePlugin, Position } from '@volar/language-service';
 import { VueVirtualCode } from '@vue/language-core';
-import type * as vscode from 'vscode-languageserver-protocol';
 import { URI } from 'vscode-uri';
 
 const twoslashReg = /<!--\s*\^\?\s*-->/g;
 
 export function create(
-	getTsPluginClient?: (context: LanguageServiceContext) => import('@vue/typescript-plugin/lib/requests').Requests | undefined
+	getTsPluginClient?: (context: LanguageServiceContext) => import('@vue/typescript-plugin/lib/requests').Requests | undefined,
 ): LanguageServicePlugin {
 	return {
 		name: 'vue-twoslash-queries',
@@ -31,8 +30,8 @@ export function create(
 						return;
 					}
 
-					const hoverOffsets: [vscode.Position, number][] = [];
-					const inlayHints: vscode.InlayHint[] = [];
+					const hoverOffsets: [Position, number][] = [];
+					const inlayHints: InlayHint[] = [];
 
 					for (const pointer of document.getText(range).matchAll(twoslashReg)) {
 						const offset = pointer.index + pointer[0].indexOf('^?') + document.offsetAt(range.start);

@@ -2,7 +2,6 @@ import type { CreateFile, LanguageServiceContext, LanguageServicePlugin, TextDoc
 import type { ExpressionNode, TemplateChildNode } from '@vue/compiler-dom';
 import { type Sfc, tsCodegen, VueVirtualCode } from '@vue/language-core';
 import type * as ts from 'typescript';
-import type * as vscode from 'vscode-languageserver-protocol';
 import { URI } from 'vscode-uri';
 
 interface ActionData {
@@ -15,7 +14,7 @@ const unicodeReg = /\\u/g;
 
 export function create(
 	ts: typeof import('typescript'),
-	getTsPluginClient?: (context: LanguageServiceContext) => import('@vue/typescript-plugin/lib/requests').Requests | undefined
+	getTsPluginClient?: (context: LanguageServiceContext) => import('@vue/typescript-plugin/lib/requests').Requests | undefined,
 ): LanguageServicePlugin {
 	return {
 		name: 'vue-extract-file',
@@ -122,19 +121,19 @@ export function create(
 					let newFileTags = [];
 
 					newFileTags.push(
-						constructTag('template', [], templateInitialIndent, sfc.template.content.slice(templateCodeRange[0], templateCodeRange[1]))
+						constructTag('template', [], templateInitialIndent, sfc.template.content.slice(templateCodeRange[0], templateCodeRange[1])),
 					);
 
 					if (toExtract.length) {
 						newFileTags.push(
-							constructTag('script', ['setup', 'lang="ts"'], scriptInitialIndent, generateNewScriptContents())
+							constructTag('script', ['setup', 'lang="ts"'], scriptInitialIndent, generateNewScriptContents()),
 						);
 					}
 					if (sfc.template.startTagEnd > script.startTagEnd) {
 						newFileTags = newFileTags.reverse();
 					}
 
-					const templateEdits: vscode.TextEdit[] = [
+					const templateEdits: TextEdit[] = [
 						{
 							range: {
 								start: document.positionAt(templateCodeRange[0]),
@@ -144,7 +143,7 @@ export function create(
 						},
 					];
 
-					const sfcEdits: vscode.TextEdit[] = [
+					const sfcEdits: TextEdit[] = [
 						{
 							range: lastImportNode ? {
 								start: sfcDocument.positionAt(script.startTagEnd + lastImportNode.end),

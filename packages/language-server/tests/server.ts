@@ -4,7 +4,6 @@ import type { LanguageServerHandle } from '@volar/test-utils';
 import { startLanguageServer } from '@volar/test-utils';
 import * as path from 'node:path';
 import { URI } from 'vscode-uri';
-import type { VueInitializationOptions } from '../lib/types';
 
 let serverHandle: LanguageServerHandle | undefined;
 let tsserver: import('@typescript/server-harness').Server;
@@ -28,7 +27,7 @@ export async function getLanguageServer(): Promise<{
 				'--suppressDiagnosticEvents',
 				// '--logVerbosity', 'verbose',
 				// '--logFile', path.join(__dirname, 'tsserver.log'),
-			]
+			],
 		);
 
 		tsserver.on('exit', code => console.log(code ? `Exited with code ${code}` : `Terminated`));
@@ -44,28 +43,23 @@ export async function getLanguageServer(): Promise<{
 				return null;
 			});
 		});
-		serverHandle.connection.onRequest('tsserverRequest', async ([command, args]) => {
+		serverHandle.connection.onNotification('tsserver/request', async ([id, command, args]) => {
 			const res = await tsserver.message({
 				seq: seq++,
 				command: command,
 				arguments: args,
 			});
-			return res.body;
+			serverHandle!.connection.sendNotification('tsserver/response', [id, res.body]);
 		});
 
 		await serverHandle.initialize(
 			URI.file(testWorkspacePath).toString(),
-			{
-				typescript: {
-					tsdk: path.dirname(require.resolve('typescript/lib/typescript.js')),
-					tsserverRequestCommand: 'tsserverRequest',
-				},
-			} satisfies VueInitializationOptions,
+			{},
 			{
 				workspace: {
 					configuration: true,
 				},
-			}
+			},
 		);
 	}
 	return {
@@ -84,9 +78,9 @@ export async function getLanguageServer(): Promise<{
 						{
 							file: URI.parse(uri).fsPath,
 							fileContent: content,
-						}
-					]
-				}
+						},
+					],
+				},
 			});
 			if (!res.success) {
 				throw new Error(res.body);
@@ -101,8 +95,8 @@ export async function getLanguageServer(): Promise<{
 				arguments: {
 					changedFiles: [],
 					closedFiles: [URI.parse(uri).fsPath],
-					openFiles: []
-				}
+					openFiles: [],
+				},
 			});
 			if (!res.success) {
 				throw new Error(res.body);

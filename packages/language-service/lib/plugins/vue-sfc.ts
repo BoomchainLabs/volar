@@ -1,9 +1,7 @@
-import type { LanguageServiceContext, LanguageServicePlugin } from '@volar/language-service';
+import type { CompletionItem, CompletionItemKind, Diagnostic, DiagnosticSeverity, DocumentSymbol, LanguageServiceContext, LanguageServicePlugin, SymbolKind, TextDocument } from '@volar/language-service';
 import { VueVirtualCode } from '@vue/language-core';
 import { create as createHtmlService } from 'volar-service-html';
 import * as html from 'vscode-html-languageservice';
-import type * as vscode from 'vscode-languageserver-protocol';
-import type { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { loadLanguageBlocks } from './data';
 
@@ -48,7 +46,7 @@ export function create(): LanguageServicePlugin {
 			diagnosticProvider: {
 				interFileDependencies: false,
 				workspaceDiagnostics: false,
-			}
+			},
 		},
 		create(context) {
 			const htmlServiceInstance = htmlService.create(context);
@@ -88,12 +86,12 @@ export function create(): LanguageServicePlugin {
 						}
 
 						const originalResult = await htmlServiceInstance.provideDiagnostics?.(document, token);
-						const sfcErrors: vscode.Diagnostic[] = [];
+						const sfcErrors: Diagnostic[] = [];
 						const { template } = sfc;
 
 						const {
 							startTagEnd = Infinity,
-							endTagStart = -Infinity
+							endTagStart = -Infinity,
 						} = template ?? {};
 
 						for (const error of vueSfc.errors) {
@@ -106,7 +104,7 @@ export function create(): LanguageServicePlugin {
 											start: document.positionAt(start),
 											end: document.positionAt(end),
 										},
-										severity: 1 satisfies typeof vscode.DiagnosticSeverity.Error,
+										severity: 1 satisfies typeof DiagnosticSeverity.Error,
 										code: error.code,
 										source: 'vue',
 										message: error.message,
@@ -117,7 +115,7 @@ export function create(): LanguageServicePlugin {
 
 						return [
 							...originalResult ?? [],
-							...sfcErrors
+							...sfcErrors,
 						];
 					});
 				},
@@ -125,13 +123,13 @@ export function create(): LanguageServicePlugin {
 				provideDocumentSymbols(document) {
 					return worker(document, context, root => {
 
-						const result: vscode.DocumentSymbol[] = [];
+						const result: DocumentSymbol[] = [];
 						const { sfc } = root;
 
 						if (sfc.template) {
 							result.push({
 								name: 'template',
-								kind: 2 satisfies typeof vscode.SymbolKind.Module,
+								kind: 2 satisfies typeof SymbolKind.Module,
 								range: {
 									start: document.positionAt(sfc.template.start),
 									end: document.positionAt(sfc.template.end),
@@ -145,7 +143,7 @@ export function create(): LanguageServicePlugin {
 						if (sfc.script) {
 							result.push({
 								name: 'script',
-								kind: 2 satisfies typeof vscode.SymbolKind.Module,
+								kind: 2 satisfies typeof SymbolKind.Module,
 								range: {
 									start: document.positionAt(sfc.script.start),
 									end: document.positionAt(sfc.script.end),
@@ -159,7 +157,7 @@ export function create(): LanguageServicePlugin {
 						if (sfc.scriptSetup) {
 							result.push({
 								name: 'script setup',
-								kind: 2 satisfies typeof vscode.SymbolKind.Module,
+								kind: 2 satisfies typeof SymbolKind.Module,
 								range: {
 									start: document.positionAt(sfc.scriptSetup.start),
 									end: document.positionAt(sfc.scriptSetup.end),
@@ -180,7 +178,7 @@ export function create(): LanguageServicePlugin {
 							}
 							result.push({
 								name,
-								kind: 2 satisfies typeof vscode.SymbolKind.Module,
+								kind: 2 satisfies typeof SymbolKind.Module,
 								range: {
 									start: document.positionAt(style.start),
 									end: document.positionAt(style.end),
@@ -194,7 +192,7 @@ export function create(): LanguageServicePlugin {
 						for (const customBlock of sfc.customBlocks) {
 							result.push({
 								name: `${customBlock.type}`,
-								kind: 2 satisfies typeof vscode.SymbolKind.Module,
+								kind: 2 satisfies typeof SymbolKind.Module,
 								range: {
 									start: document.positionAt(customBlock.start),
 									end: document.positionAt(customBlock.end),
@@ -218,7 +216,7 @@ export function create(): LanguageServicePlugin {
 					result.items = result.items.filter(item =>
 						item.label !== '!DOCTYPE' &&
 						item.label !== 'Custom Blocks' &&
-						item.label !== 'data-'
+						item.label !== 'data-',
 					);
 
 					const tags = sfcDataProvider?.provideTags();
@@ -226,13 +224,13 @@ export function create(): LanguageServicePlugin {
 					const scriptLangs = getLangs('script');
 					const scriptItems = result.items.filter(item => item.label === 'script' || item.label === 'script setup');
 					for (const scriptItem of scriptItems) {
-						scriptItem.kind = 17 satisfies typeof vscode.CompletionItemKind.File;
+						scriptItem.kind = 17 satisfies typeof CompletionItemKind.File;
 						scriptItem.detail = '.js';
 						for (const lang of scriptLangs) {
 							result.items.push({
 								...scriptItem,
 								detail: `.${lang}`,
-								kind: 17 satisfies typeof vscode.CompletionItemKind.File,
+								kind: 17 satisfies typeof CompletionItemKind.File,
 								label: scriptItem.label + ' lang="' + lang + '"',
 								textEdit: scriptItem.textEdit ? {
 									...scriptItem.textEdit,
@@ -245,13 +243,13 @@ export function create(): LanguageServicePlugin {
 					const styleLangs = getLangs('style');
 					const styleItem = result.items.find(item => item.label === 'style');
 					if (styleItem) {
-						styleItem.kind = 17 satisfies typeof vscode.CompletionItemKind.File;
+						styleItem.kind = 17 satisfies typeof CompletionItemKind.File;
 						styleItem.detail = '.css';
 						for (const lang of styleLangs) {
 							result.items.push(
 								getStyleCompletionItem(styleItem, lang),
 								getStyleCompletionItem(styleItem, lang, 'scoped'),
-								getStyleCompletionItem(styleItem, lang, 'module')
+								getStyleCompletionItem(styleItem, lang, 'module'),
 							);
 						}
 					}
@@ -259,7 +257,7 @@ export function create(): LanguageServicePlugin {
 					const templateLangs = getLangs('template');
 					const templateItem = result.items.find(item => item.label === 'template');
 					if (templateItem) {
-						templateItem.kind = 17 satisfies typeof vscode.CompletionItemKind.File;
+						templateItem.kind = 17 satisfies typeof CompletionItemKind.File;
 						templateItem.detail = '.html';
 						for (const lang of templateLangs) {
 							if (lang === 'html') {
@@ -267,7 +265,7 @@ export function create(): LanguageServicePlugin {
 							}
 							result.items.push({
 								...templateItem,
-								kind: 17 satisfies typeof vscode.CompletionItemKind.File,
+								kind: 17 satisfies typeof CompletionItemKind.File,
 								detail: `.${lang}`,
 								label: templateItem.label + ' lang="' + lang + '"',
 								textEdit: templateItem.textEdit ? {
@@ -305,18 +303,18 @@ export function create(): LanguageServicePlugin {
 }
 
 function getStyleCompletionItem(
-	styleItem: vscode.CompletionItem,
+	styleItem: CompletionItem,
 	lang: string,
-	attr?: string
-): vscode.CompletionItem {
+	attr?: string,
+): CompletionItem {
 	return {
 		...styleItem,
-		kind: 17 satisfies typeof vscode.CompletionItemKind.File,
+		kind: 17 satisfies typeof CompletionItemKind.File,
 		detail: lang === 'postcss' ? '.css' : `.${lang}`,
 		label: styleItem.label + ' lang="' + lang + '"' + (attr ? ` ${attr}` : ''),
 		textEdit: styleItem.textEdit ? {
 			...styleItem.textEdit,
 			newText: styleItem.textEdit.newText + ' lang="' + lang + '"' + (attr ? ` ${attr}` : ''),
-		} : undefined
+		} : undefined,
 	};
 }

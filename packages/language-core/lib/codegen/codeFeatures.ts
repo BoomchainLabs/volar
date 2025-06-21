@@ -7,7 +7,6 @@ const raw = {
 		semantic: true,
 		navigation: true,
 	},
-	none: {},
 	verification: {
 		verification: true,
 	},
@@ -45,6 +44,9 @@ const raw = {
 		completion: true,
 		semantic: true,
 	},
+	semanticWithoutHighlight: {
+		semantic: { shouldHighlight: () => false },
+	},
 	withoutHighlight: {
 		semantic: { shouldHighlight: () => false },
 		verification: true,
@@ -64,6 +66,11 @@ const raw = {
 	withoutHighlightAndCompletionAndNavigation: {
 		semantic: { shouldHighlight: () => false },
 		verification: true,
+	},
+	withoutSemantic: {
+		verification: true,
+		navigation: true,
+		completion: true,
 	},
 } satisfies Record<string, VueCodeInformation>;
 

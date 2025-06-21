@@ -7,12 +7,12 @@ import type { RequestContext } from './types';
 export function getPropertiesAtLocation(
 	this: RequestContext,
 	fileName: string,
-	position: number
+	position: number,
 ) {
-	const { languageService, language, typescript: ts, isTsPlugin, getFileId } = this;
+	const { languageService, language, typescript: ts, isTsPlugin, asScriptId } = this;
 
 	// mapping
-	const file = language.scripts.get(getFileId(fileName));
+	const file = language.scripts.get(asScriptId(fileName));
 	if (file?.generated) {
 		const virtualScript = file.generated.languagePlugin.typescript?.getServiceScript(file.generated.root);
 		if (!virtualScript) {

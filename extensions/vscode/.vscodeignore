@@ -1,7 +1,3 @@
-out
-scripts
-src
+**/*.ts
 tests
-tsconfig.*
-meta.json
-stats.html
+tsconfig.json

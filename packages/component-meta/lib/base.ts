@@ -2,7 +2,6 @@ import { createLanguageServiceHost, resolveFileLanguageId, type TypeScriptProjec
 import * as vue from '@vue/language-core';
 import { posix as path } from 'path-browserify';
 import type * as ts from 'typescript';
-import { code as typeHelpersCode } from 'vue-component-type-helpers';
 
 import type {
 	ComponentMeta,
@@ -12,7 +11,7 @@ import type {
 	MetaCheckerOptions,
 	PropertyMeta,
 	PropertyMetaSchema,
-	SlotMeta
+	SlotMeta,
 } from './types';
 
 export * from './types';
@@ -23,7 +22,7 @@ export function createCheckerByJsonConfigBase(
 	ts: typeof import('typescript'),
 	rootDir: string,
 	json: any,
-	checkerOptions: MetaCheckerOptions = {}
+	checkerOptions: MetaCheckerOptions = {},
 ) {
 	rootDir = rootDir.replace(windowsPathReg, '/');
 	return baseCreate(
@@ -31,14 +30,14 @@ export function createCheckerByJsonConfigBase(
 		() => vue.createParsedCommandLineByJson(ts, ts.sys, rootDir, json, undefined, true),
 		checkerOptions,
 		rootDir,
-		path.join(rootDir, 'jsconfig.json.global.vue')
+		path.join(rootDir, 'jsconfig.json.global.vue'),
 	);
 }
 
 export function createCheckerBase(
 	ts: typeof import('typescript'),
 	tsconfig: string,
-	checkerOptions: MetaCheckerOptions = {}
+	checkerOptions: MetaCheckerOptions = {},
 ) {
 	tsconfig = tsconfig.replace(windowsPathReg, '/');
 	return baseCreate(
@@ -46,7 +45,7 @@ export function createCheckerBase(
 		() => vue.createParsedCommandLine(ts, ts.sys, tsconfig, true),
 		checkerOptions,
 		path.dirname(tsconfig),
-		tsconfig + '.global.vue'
+		tsconfig + '.global.vue',
 	);
 }
 
@@ -55,17 +54,20 @@ export function baseCreate(
 	getCommandLine: () => vue.ParsedCommandLine,
 	checkerOptions: MetaCheckerOptions,
 	rootPath: string,
-	globalComponentName: string
+	globalComponentName: string,
 ) {
 	let commandLine = getCommandLine();
-	let fileNames = commandLine.fileNames.map(path => path.replace(windowsPathReg, '/'));
+	/**
+	 * Used to lookup if a file is referenced.
+	 */
+	let fileNames = new Set(commandLine.fileNames.map(path => path.replace(windowsPathReg, '/')));
 	let projectVersion = 0;
 
 	const projectHost: TypeScriptProjectHost = {
 		getCurrentDirectory: () => rootPath,
 		getProjectVersion: () => projectVersion.toString(),
 		getCompilationSettings: () => commandLine.options,
-		getScriptFileNames: () => fileNames,
+		getScriptFileNames: () => [...fileNames],
 		getProjectReferences: () => commandLine.projectReferences,
 	};
 	const globalComponentSnapshot = ts.ScriptSnapshot.fromString('<script setup lang="ts"></script>');
@@ -86,7 +88,7 @@ export function baseCreate(
 		ts,
 		projectHost.getCompilationSettings(),
 		commandLine.vueOptions,
-		id => id
+		id => id,
 	);
 	const language = vue.createLanguage(
 		[
@@ -129,7 +131,7 @@ export function baseCreate(
 			else {
 				language.scripts.delete(fileName);
 			}
-		}
+		},
 	);
 	const { languageServiceHost } = createLanguageServiceHost(ts, ts.sys, language, s => s, projectHost);
 	const tsLs = ts.createLanguageService(languageServiceHost);
@@ -189,16 +191,18 @@ export function baseCreate(
 		updateFile(fileName: string, text: string) {
 			fileName = fileName.replace(windowsPathReg, '/');
 			scriptSnapshots.set(fileName, ts.ScriptSnapshot.fromString(text));
+			// Ensure the file is referenced
+			fileNames.add(fileName);
 			projectVersion++;
 		},
 		deleteFile(fileName: string) {
 			fileName = fileName.replace(windowsPathReg, '/');
-			fileNames = fileNames.filter(f => f !== fileName);
+			fileNames.delete(fileName);
 			projectVersion++;
 		},
 		reload() {
 			commandLine = getCommandLine();
-			fileNames = commandLine.fileNames.map(path => path.replace(windowsPathReg, '/'));
+			fileNames = new Set(commandLine.fileNames.map(path => path.replace(windowsPathReg, '/')));
 			this.clearCache();
 		},
 		clearCache() {
@@ -224,7 +228,9 @@ export function baseCreate(
 
 	function getMetaScriptContent(fileName: string) {
 		let code = `
+import type { ComponentType, ComponentProps, ComponentEmit, ComponentSlots, ComponentExposed } from 'vue-component-type-helpers';
 import * as Components from '${fileName.slice(0, -'.meta.ts'.length)}';
+
 export default {} as { [K in keyof typeof Components]: ComponentMeta<typeof Components[K]>; };
 
 interface ComponentMeta<T> {
@@ -233,9 +239,7 @@ interface ComponentMeta<T> {
 	emit: ComponentEmit<T>;
 	slots: ComponentSlots<T>;
 	exposed: ComponentExposed<T>;
-};
-
-${typeHelpersCode}
+}
 `.trim();
 		return code;
 	}
@@ -338,11 +342,11 @@ ${typeHelpersCode}
 				ts.createSourceFile(
 					'/tmp.' + componentPath.slice(componentPath.lastIndexOf('.') + 1), // ts | js | tsx | jsx
 					snapshot.getText(0, snapshot.getLength()),
-					ts.ScriptTarget.Latest
+					ts.ScriptTarget.Latest,
 				),
 				exportName,
 				printer,
-				ts
+				ts,
 			) : {};
 
 			for (const [propName, defaultExp] of Object.entries({
@@ -415,7 +419,7 @@ ${typeHelpersCode}
 				const type = typeChecker.getTypeOfSymbolAtLocation($exposed, symbolNode);
 				const properties = type.getProperties().filter(prop =>
 					// only exposed props will not have a valueDeclaration
-					!prop.valueDeclaration
+					!prop.valueDeclaration,
 				);
 
 				return properties.map(prop => {
@@ -434,7 +438,7 @@ ${typeHelpersCode}
 	function _getExports(
 		program: ts.Program,
 		typeChecker: ts.TypeChecker,
-		componentPath: string
+		componentPath: string,
 	) {
 
 		const sourceFile = program?.getSourceFile(getMetaFileName(componentPath));
@@ -480,7 +484,7 @@ function createSchemaResolvers(
 	symbolNode: ts.Expression,
 	{ rawType, schema: options, noDeclarations }: MetaCheckerOptions,
 	ts: typeof import('typescript'),
-	language: vue.Language<string>
+	language: vue.Language<string>,
 ) {
 	const visited = new Set<ts.Type>();
 
@@ -742,7 +746,7 @@ function createSchemaResolvers(
 function readVueComponentDefaultProps(
 	root: vue.VueVirtualCode,
 	printer: ts.Printer | undefined,
-	ts: typeof import('typescript')
+	ts: typeof import('typescript'),
 ) {
 	let result: Record<string, {
 		default?: string;
@@ -795,17 +799,17 @@ function readVueComponentDefaultProps(
 				if (initializer) {
 					const expText = printer?.printNode(ts.EmitHint.Expression, initializer, ast) ?? initializer.getText(ast);
 					result[name] = {
-						default: expText
+						default: expText,
 					};
 				}
 			}
 		}
 
-		if (scriptSetupRanges?.defineProp) {
-			for (const defineProp of scriptSetupRanges.defineProp) {
-				const obj = defineProp.argNode ? findObjectLiteralExpression(defineProp.argNode) : undefined;
+		if (scriptSetupRanges?.defineModel) {
+			for (const defineModel of scriptSetupRanges.defineModel) {
+				const obj = defineModel.argNode ? findObjectLiteralExpression(defineModel.argNode) : undefined;
 				if (obj) {
-					const name = defineProp.name ? sfc.scriptSetup.content.slice(defineProp.name.start, defineProp.name.end).slice(1, -1) : 'modelValue';
+					const name = defineModel.name ? sfc.scriptSetup.content.slice(defineModel.name.start, defineModel.name.end).slice(1, -1) : 'modelValue';
 					result[name] = resolveModelOption(ast, obj, printer, ts);
 				}
 			}
@@ -843,7 +847,7 @@ function readTsComponentDefaultProps(
 	ast: ts.SourceFile,
 	exportName: string,
 	printer: ts.Printer | undefined,
-	ts: typeof import('typescript')
+	ts: typeof import('typescript'),
 ) {
 	const props = getPropsNode();
 
@@ -919,7 +923,7 @@ function resolvePropsOption(
 	ast: ts.SourceFile,
 	props: ts.ObjectLiteralExpression,
 	printer: ts.Printer | undefined,
-	ts: typeof import('typescript')
+	ts: typeof import('typescript'),
 ) {
 
 	const result: Record<string, { default?: string, required?: boolean; }> = {};
@@ -954,7 +958,7 @@ function resolveModelOption(
 	ast: ts.SourceFile,
 	options: ts.ObjectLiteralExpression,
 	printer: ts.Printer | undefined,
-	ts: typeof import('typescript')
+	ts: typeof import('typescript'),
 ) {
 	const result: { default?: string; } = {};
 
@@ -974,7 +978,7 @@ function resolveModelOption(
 
 function resolveDefaultOptionExpression(
 	_default: ts.Expression,
-	ts: typeof import('typescript')
+	ts: typeof import('typescript'),
 ) {
 	if (ts.isArrowFunction(_default)) {
 		if (ts.isBlock(_default.body)) {

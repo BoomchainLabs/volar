@@ -1,6 +1,5 @@
-import type { LanguageServicePlugin } from '@volar/language-service';
+import type { CompletionItem, CompletionItemKind, LanguageServicePlugin } from '@volar/language-service';
 import { type TextRange, tsCodegen, VueVirtualCode } from '@vue/language-core';
-import type * as vscode from 'vscode-languageserver-protocol';
 import { URI } from 'vscode-uri';
 import { isTsDocument } from './utils';
 
@@ -44,34 +43,34 @@ export function create(): LanguageServicePlugin {
 						return;
 					}
 
-					const result: vscode.CompletionItem[] = [];
+					const result: CompletionItem[] = [];
 					const mappings = [...context.language.maps.forEach(virtualCode)];
 
 					addDefineCompletionItem(
 						scriptSetupRanges.defineProps?.statement,
 						scriptSetupRanges.withDefaults?.exp ?? scriptSetupRanges.defineProps?.exp,
-						'props'
+						'props',
 					);
 					addDefineCompletionItem(
 						scriptSetupRanges.defineEmits?.statement,
 						scriptSetupRanges.defineEmits?.exp,
-						'emit'
+						'emit',
 					);
 					addDefineCompletionItem(
 						scriptSetupRanges.defineSlots?.statement,
 						scriptSetupRanges.defineSlots?.exp,
-						'slots'
+						'slots',
 					);
 
 					return {
 						isIncomplete: false,
-						items: result
+						items: result,
 					};
 
 					function addDefineCompletionItem(
 						statement: TextRange | undefined,
 						exp: TextRange | undefined,
-						name: string
+						name: string,
 					) {
 						if (!exp || exp.start !== statement?.start) {
 							return;
@@ -91,15 +90,15 @@ export function create(): LanguageServicePlugin {
 						const pos = document.positionAt(offset);
 						result.push({
 							label: name,
-							kind: 6 satisfies typeof vscode.CompletionItemKind.Variable,
+							kind: 6 satisfies typeof CompletionItemKind.Variable,
 							commitCharacters: ['.', ',', ';'],
 							additionalTextEdits: [{
 								newText: `const ${name} = `,
 								range: {
 									start: pos,
-									end: pos
-								}
-							}]
+									end: pos,
+								},
+							}],
 						});
 					}
 				},
